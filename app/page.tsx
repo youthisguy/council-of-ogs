@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -14,10 +13,7 @@ type ChatTurn = {
   sources?: string[];
 };
 
-// One accent color per persona, used to color message bubbles once a
-// debate has more than one speaker. Generated automatically for any
-// persona not explicitly listed, so adding new figures never silently
-// falls back to a single flat gold for everyone.
+ 
 const PERSONA_ACCENTS: Record<string, string> = {
   grant: "#4a5d4e",
   lincoln: "#5a6b8c",
@@ -55,11 +51,6 @@ export default function Home() {
   const { ready, authenticated, logout, user } = usePrivy();
   const { wallets } = useWallets();
 
-  // The embedded (or connected) wallet's address is what we use as the
-  // durable per-user identity for 0G Storage scoping. It's stable across
-  // sessions/devices as long as the user logs back in with the same
-  // method, and it's already a real on-chain address — no extra wiring
-  // needed later when minting conversations becomes a feature.
   const wallet = wallets[0];
   const userId = wallet?.address;
 
@@ -68,7 +59,7 @@ export default function Home() {
       {ready && authenticated && userId ? (
         <ChatApp userId={userId} user={user} logout={logout} />
       ) : (
-        <div className="flex h-dvh w-screen items-center justify-center bg-[#0d0a07] text-[#e8dcc4]/40">
+        <div className="flex h-[100dvh] w-screen items-center justify-center bg-[#0d0a07] text-[#e8dcc4]/40">
           <span className="font-display text-sm tracking-wide">
             Preparing your wallet…
           </span>
@@ -92,6 +83,7 @@ function ChatApp({
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [revealedSeal, setRevealedSeal] = useState<number | null>(null);
   const [sessionId, setSessionId] = useState<string>("");
   const [invitePickerOpen, setInvitePickerOpen] = useState(false);
@@ -105,13 +97,18 @@ function ChatApp({
     }
   }, [panelOpen, sessionId]);
 
+  // Load existing history for the default persona as soon as we have a
+  useEffect(() => {
+    if (userId) {
+      loadHistory(activePersona.id);
+    }
+  }, [userId]);
+
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [turns, loading]);
 
   // On small screens, opening the on-screen keyboard to type a message
-  // can push the layout around. Re-anchor scroll to bottom once the
-  // textarea is focused so the latest turn stays visible.
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -205,19 +202,35 @@ function ChatApp({
     }
   }
 
+  async function loadHistory(personaId: string) {
+    setHistoryLoading(true);
+    try {
+      const res = await fetch(
+        `/api/chat?userId=${encodeURIComponent(userId)}&personaId=${encodeURIComponent(personaId)}`
+      );
+      const data = await res.json();
+      setTurns(data.turns ?? []);
+    } catch (e) {
+ 
+      setTurns([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
   function switchPersona(p: Persona) {
     setActivePersona(p);
-    setTurns([]);
     // setPanelOpen(true);
     setSessionId(generateSessionId());
     setParticipants([p.id]);
     setInvitePickerOpen(false);
+    loadHistory(p.id);
   }
 
   const availableToInvite = PERSONAS.filter((p) => !participants.includes(p.id));
 
   return (
-    <div className="relative h-dvh w-screen overflow-hidden bg-[#0d0a07] text-[#e8dcc4] font-body">
+    <div className="relative h-[100dvh] w-screen overflow-hidden bg-[#0d0a07] text-[#e8dcc4] font-body">
       {/* Ambient backdrop scene with mouse-driven parallax */}
       <Scene persona={activePersona} dimmed={panelOpen} />
 
@@ -231,7 +244,7 @@ function ChatApp({
               <button
                 key={p.id}
                 onClick={() => switchPersona(p)}
-                className={`h-11 w-11 shrink-0 rounded-full border-2 transition-all sm:h-12 sm:w-12 ${
+                className={`h-11 w-11 flex-shrink-0 rounded-full border-2 transition-all sm:h-12 sm:w-12 ${
                   p.id === activePersona.id
                     ? "shadow-[0_0_0_3px_rgba(201,168,118,0.25)]"
                     : "opacity-55 hover:opacity-100"
@@ -247,8 +260,8 @@ function ChatApp({
             ))}
           </div>
           {/* Edge fades signal scrollability on mobile */}
-          <div className="pointer-events-none absolute left-0 top-0 h-full w-6 bg-linear-to-r from-[#0d0a07] to-transparent sm:hidden" />
-          <div className="pointer-events-none absolute right-0 top-0 h-full w-6 bg-linear-to-l from-[#0d0a07] to-transparent sm:hidden" />
+          <div className="pointer-events-none absolute left-0 top-0 h-full w-6 bg-gradient-to-r from-[#0d0a07] to-transparent sm:hidden" />
+          <div className="pointer-events-none absolute right-0 top-0 h-full w-6 bg-gradient-to-l from-[#0d0a07] to-transparent sm:hidden" />
         </div>
       </div>
 
@@ -283,7 +296,7 @@ function ChatApp({
 
       {/* Side panel — full-screen sheet on mobile, fixed-width panel on desktop */}
       <div
-        className={`absolute right-0 top-0 z-30 flex h-full w-full flex-col border-l border-[#c9a876]/15 bg-[#161108]/97 backdrop-blur-md transition-transform duration-500 sm:w-115 ${
+        className={`absolute right-0 top-0 z-30 flex h-full w-full flex-col border-l border-[#c9a876]/15 bg-[#161108]/97 backdrop-blur-md transition-transform duration-500 sm:w-[460px] ${
           panelOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
@@ -303,7 +316,7 @@ function ChatApp({
           </div>
           <button
             onClick={() => setPanelOpen(false)}
-            className="ml-3 shrink-0 p-2 text-[#e8dcc4]/50 transition hover:text-[#e8dcc4]"
+            className="ml-3 flex-shrink-0 p-2 text-[#e8dcc4]/50 transition hover:text-[#e8dcc4]"
             aria-label="Close panel"
           >
             ✕
@@ -315,7 +328,17 @@ function ChatApp({
           ref={scrollRef}
           className="flex-1 overflow-y-auto px-4 py-4 space-y-4 sm:px-6 sm:py-5"
         >
-          {turns.length === 0 && (
+          {historyLoading && (
+         <div className="flex items-center gap-2 text-sm text-[#e8dcc4]/30">
+         <span>Retrieving the record</span>
+         <span className="flex gap-1">
+           <span className="h-1 w-1 animate-pulse rounded-full bg-[#c9a876]/60" style={{ animationDelay: "0ms" }} />
+           <span className="h-1 w-1 animate-pulse rounded-full bg-[#c9a876]/60" style={{ animationDelay: "200ms" }} />
+           <span className="h-1 w-1 animate-pulse rounded-full bg-[#c9a876]/60" style={{ animationDelay: "400ms" }} />
+         </span>
+       </div>
+          )}
+          {!historyLoading && turns.length === 0 && (
             <p className="text-sm leading-relaxed text-[#e8dcc4]/45">
               Ask {activePersona.name} about their documented record. Every
               claim made here is grounded in named sources, sealed and
@@ -383,9 +406,11 @@ function ChatApp({
             );
           })}
           {loading && (
-            <div className="inline-block rounded-xl bg-[#1f1912] px-4 py-3 text-sm text-[#e8dcc4]/40">
-              Consulting the record…
-            </div>
+           <div className="inline-flex items-center gap-1.5 rounded-xl bg-[#1f1912] px-4 py-3 text-sm text-[#e8dcc4]/40">
+           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#c9a876]" style={{ animationDelay: "0ms" }} />
+           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#c9a876]" style={{ animationDelay: "200ms" }} />
+           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#c9a876]" style={{ animationDelay: "400ms" }} />
+         </div>
           )}
         </div>
 
@@ -450,7 +475,7 @@ function ChatApp({
             <button
               onClick={sendMessage}
               disabled={loading || !input.trim()}
-              className="shrink-0 rounded-md bg-[#c9a876] px-3 py-1.5 text-xs font-medium text-[#1a1410] transition disabled:opacity-30"
+              className="flex-shrink-0 rounded-md bg-[#c9a876] px-3 py-1.5 text-xs font-medium text-[#1a1410] transition disabled:opacity-30"
             >
               Ask
             </button>

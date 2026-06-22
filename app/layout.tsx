@@ -21,7 +21,7 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Council of History",
+  title: "The Council",
   description: "Chat with citation-grounded historical figures, verified on 0G.",
 };
 

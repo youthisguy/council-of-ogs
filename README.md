@@ -17,18 +17,19 @@ Council of History is an attempt to fix that. Every figure is constrained to spe
 - **See the receipts.** Every reply carries a "Sealed Source" marker. Opening it reveals the named sources behind that figure's answer, with a "Verified on 0G Storage" tag confirming the citation was written on-chain, not generated as decoration.
 - **Persistent memory across sessions**, stored on 0G rather than in browser state — a figure's memory of your conversation isn't tied to one device or one tab.
 
-## How 0G is load-bearing, not decorative
-
-The submission criteria are explicit: 0G has to do real work, not sit beside an app that would run identically without it. Here's exactly where it sits in this build:
+## How 0G is load-bearing 
 
 | Layer | What it does | What breaks without it |
 |---|---|---|
 | **0G Compute Router** | Runs every persona's actual inference call (OpenAI-compatible endpoint, TEE-attested providers) | There's no "verifiable inference" claim left — it's just another LLM API call |
 | **0G Storage (0G-KV)** | Stores per-user conversation memory, the shared council transcript once a debate starts, and the citation bundle behind every single reply | Memory becomes ordinary browser state, and "sources" become unverifiable text the model could fabricate with no record anywhere |
 
-Concretely: when a figure answers, the system prompt constrains it to draw only from a fixed list of real, named primary sources for that figure. That constraint, and the resulting answer, are both written to 0G Storage under a unique message ID. Anyone holding that ID can pull the citation bundle independently of the chat UI and confirm what the figure was instructed to ground its answer in.
+**How it works concretely:**
+When a figure responds, its full system prompt (including the fixed list of primary sources) and the generated reply are both written to 0G Storage under a unique message ID. Anyone with that ID can independently verify what the model was instructed to ground itself in.
 
-**Being precise about what this does and doesn't prove:** the citation bundle currently reflects the persona's source list as a whole, not a sentence-by-sentence fact-check against primary texts. What's verifiable on-chain is that the model was constrained to a specific, named source set and that the resulting reply was recorded immutably at that moment — not that every individual claim has been independently audited against the source.  
+> *Note:* Citations are currently at the persona level (full source list per figure). Sentence-by-sentence claim verification is planned.
+
+---
 
 ## Architecture
 
@@ -103,12 +104,6 @@ You'll need:
 - A small amount of testnet 0G deposited into the Router's Payment Layer balance.
 
 See `.env.example` for the full list of required variables.
-
-## limitations
-
-- **Citation granularity is currently persona-level, not claim-level.** A figure's source list is fixed per persona; it doesn't yet vary per specific claim within an answer.
-- **Demo build uses a single shared user identity** for simplicity; per-user isolation (e.g. via a session cookie) is a planned next step rather than shipped.
-- **Storage writes are synchronous and can take tens of seconds** on testnet, since each write is a real on-chain transaction waiting on storage-node sync — this is genuine on-chain latency, not an artificial demo delay.
 
 ## What's next
 

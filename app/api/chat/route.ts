@@ -1,4 +1,5 @@
- import { NextRequest, NextResponse } from "next/server";
+ 
+import { NextRequest, NextResponse } from "next/server";
 import { getPersona } from "@/app/src/personas/personas"; 
 import { runPersonaChat, type ChatMessage } from "@/app/src/lib/zgCompute";
 import {
@@ -8,6 +9,34 @@ import {
   readCouncilTranscript,
   appendCouncilTurn,
 } from "@/app/src/lib/zgStorage";
+
+export async function GET(req: NextRequest) {
+  const userId = req.nextUrl.searchParams.get("userId");
+  const personaId = req.nextUrl.searchParams.get("personaId");
+
+  if (!userId || !personaId) {
+    return NextResponse.json(
+      { error: "userId and personaId are required" },
+      { status: 400 }
+    );
+  }
+
+  const persona = getPersona(personaId);
+  if (!persona) {
+    return NextResponse.json({ error: "Unknown persona" }, { status: 404 });
+  }
+
+  const history = await readMemory(userId, personaId);
+
+ 
+  const turns = history.map((h) => ({
+    personaId: h.role === "user" ? "user" : persona.id,
+    personaName: h.role === "user" ? "You" : persona.name,
+    content: h.content,
+  }));
+
+  return NextResponse.json({ turns });
+}
 
 export async function POST(req: NextRequest) {
   const { userId, personaId, message, sessionId } = await req.json();
