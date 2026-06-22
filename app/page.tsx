@@ -1,8 +1,11 @@
+
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { PERSONAS, type Persona }  from "./src/personas/personas";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { PERSONAS, type Persona } from "./src/personas/personas"; 
 import Scene from "./ council/components/Scene";
+import LoginGate from "./components/LoginGate";
 
 type ChatTurn = {
   personaId: string;
@@ -11,9 +14,10 @@ type ChatTurn = {
   sources?: string[];
 };
 
-const USER_ID = "demo-user";  
-
- 
+// One accent color per persona, used to color message bubbles once a
+// debate has more than one speaker. Generated automatically for any
+// persona not explicitly listed, so adding new figures never silently
+// falls back to a single flat gold for everyone.
 const PERSONA_ACCENTS: Record<string, string> = {
   grant: "#4a5d4e",
   lincoln: "#5a6b8c",
@@ -48,6 +52,41 @@ function initials(name: string) {
 }
 
 export default function Home() {
+  const { ready, authenticated, logout, user } = usePrivy();
+  const { wallets } = useWallets();
+
+  // The embedded (or connected) wallet's address is what we use as the
+  // durable per-user identity for 0G Storage scoping. It's stable across
+  // sessions/devices as long as the user logs back in with the same
+  // method, and it's already a real on-chain address — no extra wiring
+  // needed later when minting conversations becomes a feature.
+  const wallet = wallets[0];
+  const userId = wallet?.address;
+
+  return (
+    <LoginGate>
+      {ready && authenticated && userId ? (
+        <ChatApp userId={userId} user={user} logout={logout} />
+      ) : (
+        <div className="flex h-dvh w-screen items-center justify-center bg-[#0d0a07] text-[#e8dcc4]/40">
+          <span className="font-display text-sm tracking-wide">
+            Preparing your wallet…
+          </span>
+        </div>
+      )}
+    </LoginGate>
+  );
+}
+
+function ChatApp({
+  userId,
+  user,
+  logout,
+}: {
+  userId: string;
+  user: ReturnType<typeof usePrivy>["user"];
+  logout: () => Promise<void>;
+}) {
   const [activePersona, setActivePersona] = useState<Persona>(PERSONAS[0]);
   const [panelOpen, setPanelOpen] = useState(false);
   const [turns, setTurns] = useState<ChatTurn[]>([]);
@@ -98,7 +137,7 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: USER_ID,
+          userId,
           personaId: activePersona.id,
           message,
           sessionId,
@@ -136,7 +175,7 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: USER_ID,
+          userId,
           sessionId,
           hostPersonaId: activePersona.id,
           inviteePersonaId: invitee.id,
@@ -169,7 +208,7 @@ export default function Home() {
   function switchPersona(p: Persona) {
     setActivePersona(p);
     setTurns([]);
- 
+    // setPanelOpen(true);
     setSessionId(generateSessionId());
     setParticipants([p.id]);
     setInvitePickerOpen(false);
@@ -178,21 +217,21 @@ export default function Home() {
   const availableToInvite = PERSONAS.filter((p) => !participants.includes(p.id));
 
   return (
-    <div className="relative h-[100dvh] w-screen overflow-hidden bg-[#0d0a07] text-[#e8dcc4] font-body">
+    <div className="relative h-dvh w-screen overflow-hidden bg-[#0d0a07] text-[#e8dcc4] font-body">
       {/* Ambient backdrop scene with mouse-driven parallax */}
       <Scene persona={activePersona} dimmed={panelOpen} />
 
       {/* Persona picker rail — horizontally scrollable so 9+ figures never
           overflow the viewport on phones. Edge fade hints there's more
           to scroll without needing arrows. */}
-      <div className="absolute left-0 top-0 z-20 w-full pt-4 sm:left-6 sm:top-6 sm:w-auto sm:pt-0">
+      <div className="absolute left-0 top-12 z-20 w-full pt-1 sm:left-6 sm:top-6 sm:w-auto sm:pt-0">
         <div className="relative">
           <div className="scrollbar-none flex gap-2.5 overflow-x-auto px-4 pb-1 sm:gap-3 sm:px-0">
             {PERSONAS.map((p, i) => (
               <button
                 key={p.id}
                 onClick={() => switchPersona(p)}
-                className={`h-11 w-11 flex-shrink-0 rounded-full border-2 transition-all sm:h-12 sm:w-12 ${
+                className={`h-11 w-11 shrink-0 rounded-full border-2 transition-all sm:h-12 sm:w-12 ${
                   p.id === activePersona.id
                     ? "shadow-[0_0_0_3px_rgba(201,168,118,0.25)]"
                     : "opacity-55 hover:opacity-100"
@@ -208,10 +247,29 @@ export default function Home() {
             ))}
           </div>
           {/* Edge fades signal scrollability on mobile */}
-          <div className="pointer-events-none absolute left-0 top-0 h-full w-6 bg-gradient-to-r from-[#0d0a07] to-transparent sm:hidden" />
-          <div className="pointer-events-none absolute right-0 top-0 h-full w-6 bg-gradient-to-l from-[#0d0a07] to-transparent sm:hidden" />
+          <div className="pointer-events-none absolute left-0 top-0 h-full w-6 bg-linear-to-r from-[#0d0a07] to-transparent sm:hidden" />
+          <div className="pointer-events-none absolute right-0 top-0 h-full w-6 bg-linear-to-l from-[#0d0a07] to-transparent sm:hidden" />
         </div>
       </div>
+
+      {/* Account indicator — shows the real wallet address backing this
+          session's identity, with a way to log out. Hidden while the panel
+          is open so it doesn't compete with the panel header. */}
+      {!panelOpen && (
+        <div className="absolute right-4 top-4 z-20 flex items-center gap-2 rounded-full border border-[#c9a876]/20 bg-[#1a1410]/70 px-3 py-1.5 backdrop-blur-sm sm:right-6 sm:top-6">
+          <span className="font-mono text-[10px] text-[#e8dcc4]/50">
+            {user?.email?.address ??
+              user?.google?.email ??
+              `${userId.slice(0, 6)}…${userId.slice(-4)}`}
+          </span>
+          <button
+            onClick={logout}
+            className="text-[10px] uppercase tracking-wide text-[#e8dcc4]/30 transition hover:text-[#e8dcc4]/70"
+          >
+            Log out
+          </button>
+        </div>
+      )}
 
       {/* Open council button */}
       {!panelOpen && (
@@ -225,7 +283,7 @@ export default function Home() {
 
       {/* Side panel — full-screen sheet on mobile, fixed-width panel on desktop */}
       <div
-        className={`absolute right-0 top-0 z-30 flex h-full w-full flex-col border-l border-[#c9a876]/15 bg-[#161108]/97 backdrop-blur-md transition-transform duration-500 sm:w-[460px] ${
+        className={`absolute right-0 top-0 z-30 flex h-full w-full flex-col border-l border-[#c9a876]/15 bg-[#161108]/97 backdrop-blur-md transition-transform duration-500 sm:w-115 ${
           panelOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
@@ -245,7 +303,7 @@ export default function Home() {
           </div>
           <button
             onClick={() => setPanelOpen(false)}
-            className="ml-3 flex-shrink-0 p-2 text-[#e8dcc4]/50 transition hover:text-[#e8dcc4]"
+            className="ml-3 shrink-0 p-2 text-[#e8dcc4]/50 transition hover:text-[#e8dcc4]"
             aria-label="Close panel"
           >
             ✕
@@ -392,7 +450,7 @@ export default function Home() {
             <button
               onClick={sendMessage}
               disabled={loading || !input.trim()}
-              className="flex-shrink-0 rounded-md bg-[#c9a876] px-3 py-1.5 text-xs font-medium text-[#1a1410] transition disabled:opacity-30"
+              className="shrink-0 rounded-md bg-[#c9a876] px-3 py-1.5 text-xs font-medium text-[#1a1410] transition disabled:opacity-30"
             >
               Ask
             </button>

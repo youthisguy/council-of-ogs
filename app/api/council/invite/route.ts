@@ -8,7 +8,6 @@ import {
   writeCitation,
   type CouncilTurn,
 } from "@/app/src/lib/zgStorage";
-
 export async function POST(req: NextRequest) {
   const { userId, sessionId, hostPersonaId, inviteePersonaId } =
     await req.json();
@@ -35,7 +34,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 1. Seed the shared transcript from the 1:1 history (idempotent)
   const transcript = await seedCouncilFromMemory(
     sessionId,
     userId,
@@ -43,23 +41,31 @@ export async function POST(req: NextRequest) {
     host.name
   );
 
-  // 2. Build context for the invitee: they see the real conversation so far
   const transcriptText = transcript
     .map((t) => `${t.personaName}: ${t.content}`)
     .join("\n\n");
 
-  const introPrompt = `You are being invited into an ongoing conversation between a user and ${host.name}. Here is the conversation so far:
+  const originalQuestion =
+    transcript.filter((t) => t.personaId === "user").slice(-1)[0]?.content ??
+    "the topic of this conversation";
 
-${transcriptText || "(no prior conversation — you are opening the discussion)"}
-
-You have just joined. Respond as yourself, reacting naturally to what has been said — agree, disagree, add nuance, or pose a question, as your own documented views would actually lead you to. Keep your response focused: 2-4 sentences, plus any necessary citation brackets. Do not narrate that you "just joined" — simply speak.`;
+  const introPrompt = `Someone in this conversation asked the following question, word for word:
+ 
+"${originalQuestion}"
+ 
+Your task is to answer that exact question above — not to describe or summarize the conversation, not to say what "the topic" is, and not to talk about your own famous works in the abstract. Answer as if the question were asked directly to you, right now.
+ 
+For context, here is what others have said in response to that same question so far:
+ 
+${transcriptText || "(no one has answered yet — you are the first to respond)"}
+ 
+Now answer the question — "${originalQuestion}" — directly and specifically, drawing on your own documented views. If something already said connects to your own views, name it and say whether you agree or disagree and why — but the bulk of your answer must be your own direct position on the question itself. Do not open by describing what the conversation or topic "appears to be about." Do not deflect by saying this is outside your expertise unless the question truly has no connection to anything you are documented to have thought about. Keep your response to 2-4 sentences, plus any necessary citation brackets. Do not narrate that you "just joined" — simply answer.`;
 
   const messages: ChatMessage[] = [
     { role: "system", content: invitee.systemPrompt },
     { role: "user", content: introPrompt },
   ];
 
-  // 3. Run inference for the invitee's entrance line
   const { text } = await runPersonaChat(messages);
 
   const ts = Date.now();
@@ -72,7 +78,6 @@ You have just joined. Respond as yourself, reacting naturally to what has been s
     messageId,
   };
 
-  // 4. Persist the invitee's entrance turn + citation bundle
   await appendCouncilTurn(sessionId, newTurn);
   await writeCitation(sessionId, invitee.id, messageId, invitee.sources);
 

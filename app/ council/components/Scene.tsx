@@ -28,8 +28,7 @@ export default function Scene({ persona, dimmed }: SceneProps) {
       setOffset({ x: nx, y: ny });
     }
 
-    // Listen on window, not just the container, so the effect still feels
-    // alive even when the cursor briefly leaves the bounds (e.g. near edges).
+ 
     window.addEventListener("pointermove", handlePointerMove);
     return () => window.removeEventListener("pointermove", handlePointerMove);
   }, []);
@@ -95,20 +94,29 @@ export default function Scene({ persona, dimmed }: SceneProps) {
           <img
             src={persona.portraitSrc}
             alt={persona.name}
-            className="h-[90%] max-w-[640px] object-contain object-bottom drop-shadow-2xl"
+            className="h-[90%] max-w-160 object-contain object-bottom drop-shadow-2xl"
+            style={{
+              transform: persona.portraitOffsetY
+                ? `translateY(${persona.portraitOffsetY}%)`
+                : undefined,
+            }}
             draggable={false}
           />
         ) : (
-          <div className="h-[88%] w-[60%] max-w-[520px] rounded-t-[200px] bg-gradient-to-t from-[#2d2419] via-[#3a3024]/60 to-transparent opacity-80" />
+          <div className="h-[88%] w-[60%] max-w-130 rounded-t-[200px] bg-linear-to-t from-[#2d2419] via-[#3a3024]/60 to-transparent opacity-80" />
         )}
       </div>
 
-      <div className="absolute bottom-10 left-10 z-10 font-display text-2xl tracking-wide text-[#c9a876] drop-shadow-lg">
-        {persona.name}
-        <div className="mt-1 font-body text-sm font-normal text-[#e8dcc4]/60">
+      <div className="absolute bottom-6 left-4 right-4 z-10 max-w-[calc(100%-2rem)] sm:bottom-10 sm:left-10 sm:right-auto sm:max-w-[420px]">
+        <div className="font-display text-lg leading-tight tracking-wide text-[#c9a876] drop-shadow-lg break-words sm:text-2xl">
+          {persona.name}
+        </div>
+        <div className="mt-1 max-w-[240px] font-body text-xs font-normal leading-snug text-[#e8dcc4]/60 wrap-break-word sm:max-w-none sm:text-sm">
           {persona.years} · {persona.blurb}
         </div>
       </div>
     </div>
+
+ 
   );
 }

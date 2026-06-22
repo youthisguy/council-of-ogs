@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Fraunces, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import Providers from "./src/providers";
+import { Analytics } from "@vercel/analytics/next"
 
 const fraunces = Fraunces({
   variable: "--font-display",
@@ -27,7 +29,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  viewportFit: "cover",  
+  viewportFit: "cover", 
 };
 
 export default function RootLayout({
@@ -37,7 +39,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${fraunces.variable} ${inter.variable} ${mono.variable} h-full antialiased`}>
-      <body className="h-full">{children}</body>
+      <body className="h-full">
+        <Analytics />
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }
